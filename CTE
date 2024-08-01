@@ -1,0 +1,54 @@
+--SQL query with a common table expression:
+
+--top countries by customer count
+WITH top_countries AS (
+    SELECT CO.country_id
+    FROM customer CU
+    INNER JOIN address A ON CU.address_id = A.address_id
+    INNER JOIN city CI ON A.city_id = CI.city_id
+    INNER JOIN country CO ON CI.country_id = CO.country_id
+    GROUP BY CO.country_id
+    ORDER BY COUNT(CU.customer_id) DESC
+    LIMIT 10
+),
+--top cities from top countries
+top_cities AS (
+    SELECT CI.city_id
+    FROM customer CU
+    INNER JOIN address A ON CU.address_id = A.address_id
+    INNER JOIN city CI ON A.city_id = CI.city_id
+    INNER JOIN country CO ON CI.country_id = CO.country_id
+    WHERE CO.country_id IN (SELECT country_id FROM top_countries)
+    GROUP BY CI.city_id
+    ORDER BY COUNT(CU.customer_id) DESC
+    LIMIT 10
+),
+--top customers from top cities from top countries
+top_customers AS (
+    SELECT CU.customer_id,
+           CU.first_name,
+           CU.last_name,
+           CO.country_id,
+           SUM(PAY.amount) AS total_amount
+    FROM payment PAY
+    INNER JOIN customer CU ON PAY.customer_id = CU.customer_id
+    INNER JOIN address A ON CU.address_id = A.address_id
+    INNER JOIN city CI ON A.city_id = CI.city_id
+    INNER JOIN country CO ON CI.country_id = CO.country_id
+    WHERE CI.city_id IN (SELECT city_id FROM top_cities)
+    GROUP BY CU.customer_id, CO.country_id
+    ORDER BY SUM(PAY.amount) DESC
+    LIMIT 5
+)
+--number of top 5 customers from filters based within each country 
+SELECT CO.country,
+       COUNT(DISTINCT CU.customer_id) AS all_customers_count,
+       COUNT(DISTINCT TC.customer_id) AS top_customer_count
+FROM country CO
+LEFT JOIN city CI ON CO.country_id = CI.country_id
+LEFT JOIN address A ON CI.city_id = A.city_id
+LEFT JOIN customer CU ON A.address_id = CU.address_id
+LEFT JOIN top_customers TC ON CU.customer_id = TC.customer_id
+GROUP BY CO.country
+ORDER BY top_customer_count DESC
+	LIMIT 5;
